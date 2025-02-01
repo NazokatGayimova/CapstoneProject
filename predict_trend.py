@@ -1,37 +1,56 @@
+import openai
+import os
 import sqlite3
-import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from dotenv import load_dotenv
 
-DATABASE = "database/air_quality.sqlite"
+# Load API key
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Ensure API key is set
+if not OPENAI_API_KEY:
+    raise ValueError("\u274c OpenAI API key is missing! Check your .env file.")
+
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 
 def predict_air_quality_trend(location):
-    """Predicts future air pollution trends using historical PM2.5 data."""
-    conn = sqlite3.connect(DATABASE)
+    """Predicts future air quality trends based on historical data or AI assistance"""
+    try:
+        conn = sqlite3.connect("database/air_quality.sqlite")
+        query = f"""
+        SELECT year, pm2_5 FROM air_quality 
+        WHERE location = '{location}' 
+        ORDER BY year ASC;
+        """
+        df = pd.read_sql(query, conn)
+        conn.close()
 
-    # Get historical PM2.5 data
-    query = f"""
-    SELECT year, pm2_5 FROM air_quality 
-    WHERE location = '{location}'
-    ORDER BY year ASC;
-    """
+        if df.empty:
+            # If no data is found, use AI assistance
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": f"Predict future air quality for {location}."}]
+            )
+            return response.choices[0].message.content.strip()
 
-    data = pd.read_sql(query, conn)
-    conn.close()
+        # Implement a simple prediction model using linear regression
+        from sklearn.linear_model import LinearRegression
+        import numpy as np
 
-    if data.empty:
-        return f"No data available for {location}."
+        df = df.dropna()
+        if df.empty:
+            return "⚠️ No valid historical data available for prediction."
 
-    # Convert to NumPy arrays for regression
-    years = np.array(data["year"], dtype=int).reshape(-1, 1)
-    pm_values = np.array(data["pm2_5"])
+        X = df['year'].values.reshape(-1, 1)
+        y = df['pm2_5'].values
 
-    # Train Linear Regression model
-    model = LinearRegression()
-    model.fit(years, pm_values)
+        model = LinearRegression()
+        model.fit(X, y)
+        next_year = np.array([[max(df['year']) + 1]])
+        predicted_pm = model.predict(next_year)[0]
 
-    next_year = np.array([[max(years) + 1]])
-    predicted_pm = model.predict(next_year)[0]
-
-    return f"📊 Predicted PM2.5 level for {location} in {int(next_year[0][0])}: {predicted_pm:.2f}"
+        return f"Predicted PM2.5 level for {next_year[0][0]}: {predicted_pm:.2f}"
+    except Exception as e:
+        return f"❌ Prediction error: {str(e)}"

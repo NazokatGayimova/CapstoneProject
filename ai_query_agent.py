@@ -1,94 +1,81 @@
-import os
-import openai
 import sqlite3
-import re
+import openai
+import os
 from dotenv import load_dotenv
-from tenacity import retry, wait_random_exponential, stop_after_attempt
 
 # Load environment variables
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path)
-
-# Ensure API key is set
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-if not openai.api_key:
-    raise ValueError("\u274c OpenAI API key is missing! Check your .env file.")
-
-MODEL = "gpt-3.5-turbo-0125"
-DATABASE = "database/air_quality.sqlite"
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
-def chat_completion_request(messages, functions=None, model=MODEL):
-    """Requests OpenAI ChatCompletion API."""
-    try:
-        response = openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            functions=functions if functions else None
-        )
+# Function to retrieve database schema
+def get_database_schema():
+    """Retrieve database schema dynamically."""
+    conn = sqlite3.connect("database/air_quality.sqlite")
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
 
-        # Debugging: Print API response
-        print("API Response:", response)
+    schema_info = {}
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        columns = [col[1] for col in cursor.fetchall()]
+        schema_info[table_name] = columns
 
-        return response
-    except Exception as e:
-        print("Unable to generate ChatCompletion response")
-        print(f"Exception: {e}")
-        return None  # Return None instead of crashing
+    conn.close()
+    return schema_info
 
 
+# Function to generate SQL query using OpenAI
 def generate_sql_query(user_query):
-    """Converts a natural language question into an SQL query using OpenAI."""
-    messages = [
-        {"role": "system", "content": """You are an AI assistant that generates SQL queries for an air quality database. 
-        The table name is `air_quality`. The correct column for locations is `location`. 
-        The correct column for PM2.5 values is `pm2_5`. 
-        The correct column for date filtering is `year`. 
-        Instead of using dynamic date functions, always select the most recent available year using:
-        `year = (SELECT MAX(year) FROM air_quality)`.
-        Your response must only contain the SQL query, nothing else."""},
-        {"role": "user", "content": user_query}
-    ]
-
-    response = chat_completion_request(messages)
-
-    if response is None:
-        return "Error generating SQL query: No response from OpenAI API."
-
+    """Generate an SQL query based on user input and database schema."""
+    schema_info = get_database_schema()
+    prompt = f"""
+    You are an SQL assistant with access to the following database schema:
+    {schema_info}
+    Given this schema, generate an appropriate SQL query for the user's request:
+    "{user_query}"
+    Ensure the SQL is correctly formatted and avoids non-existing table or column names.
+    Do not include explanations, only return the SQL query.
+    """
     try:
-        sql_query = response.choices[0].message.content
-
-        # Extract SQL query from AI response (remove markdown formatting)
-        match = re.search(r"```sql\n(.*?)\n```", sql_query, re.DOTALL)
-        if match:
-            sql_query = match.group(1).strip()  # Extract only the SQL part
-
-        return sql_query
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are an expert SQL assistant."},
+                      {"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating SQL query: {e}"
 
 
+# Function to query the database
 def ask_database(query):
-    """Executes an AI-generated SQL query on the SQLite database."""
+    """Execute SQL query and return results."""
     try:
-        conn = sqlite3.connect(DATABASE)
+        conn = sqlite3.connect("database/air_quality.sqlite")
         cursor = conn.cursor()
         cursor.execute(query)
-        results = cursor.fetchall()
-        return results  # Successfully return results
+        rows = cursor.fetchall()
+        conn.close()
+        return rows if rows else "Please visit openweather.com for more information."
     except Exception as e:
-        print(f"SQL Execution Error: {e}")  # Print SQL error message
-        return None  # Return None if an error occurs
-    finally:
-        conn.close()  # Always close the database connection
+        return f"SQL error: {e}"
+
+
+# Main function to handle user queries
+def handle_query(user_query):
+    """Process user query and return results from database or OpenWeather prompt."""
+    sql_query = generate_sql_query(user_query)
+    if "Error" in sql_query:
+        return "Please visit openweather.com for more information."
+
+    return ask_database(sql_query)
 
 
 if __name__ == "__main__":
-    user_input = "Which location had the highest PM2.5 levels last year?"
-    sql_query = generate_sql_query(user_input)
-    print(f"Generated SQL Query: {sql_query}")
-
-    results = ask_database(sql_query)
-    print(f"Results: {results}")
+    user_input = input("Enter your air quality question: ")
+    response = handle_query(user_input)
+    print(response)
