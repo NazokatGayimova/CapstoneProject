@@ -1,74 +1,40 @@
-import requests
-import logging
 import streamlit as st
+import sqlite3
+from ai_query_agent import generate_sql_query, ask_database
+from predict_trend import predict_air_quality_trend
 
-logging.basicConfig(level=logging.INFO)
+st.title("\U0001F30D AI-Powered Air Quality Query Agent")
 
-API_KEY = "b8051d817b22bfb0aa796d0477465a59"  # Your API key
+st.write("Enter your question about air quality data, and AI will generate an SQL query to fetch results.")
 
-# Function to fetch air pollution data
-def fetch_air_pollution_data(lat, lon, api_key):
-    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={api_key}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            return data['list'][0]
+# User input field for SQL query
+user_query = st.text_input("\U0001F50E Ask a question:", placeholder="Which location had the highest PM2.5 levels last year?")
+
+# Submit button for SQL query
+if st.button("Run Query"):
+    if user_query:
+        sql_query = generate_sql_query(user_query)
+        st.write(f"\U0001F4CC **Generated SQL Query:**\n```sql\n{sql_query}\n```")
+
+        results = ask_database(sql_query)
+
+        if results:
+            st.success("✅ Query executed successfully!")
+            st.write("### Results:")
+            st.table(results)
         else:
-            logging.error(f"Failed to fetch air pollution data. Status code: {response.status_code}")
-            return None
-    except Exception as e:
-        logging.error(f"An error occurred: {e}")
-        return None
+            st.warning("⚠️ No data found for this query.")
+    else:
+        st.error("⚠️ Please enter a question.")
 
-# Function to fetch city coordinates
-def get_city_coordinates(city_name, api_key):
-    url = f"http://api.openweathermap.org/geo/1.0/direct?q={city_name}&limit=1&appid={api_key}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200 and response.json():
-            city_data = response.json()[0]
-            return city_data["lat"], city_data["lon"]
-        else:
-            logging.error(f"Failed to fetch coordinates for {city_name}. Status code: {response.status_code}")
-            return None, None
-    except Exception as e:
-        logging.error(f"An error occurred while fetching coordinates: {e}")
-        return None, None
+# Trend Prediction Section
+st.header("📈 Predict Future Air Quality Trends")
 
-# Streamlit app
-def main():
-    st.title("Capstone Project UI")
-    st.write("Welcome! Get real-time air pollution data for any city.")
+location_input = st.text_input("🌍 Enter a location:", placeholder="e.g., Los Angeles")
 
-    city = st.text_input("Enter a city:", "Tashkent")
-
-    if st.button("Get Air Pollution Data"):
-        lat, lon = get_city_coordinates(city, API_KEY)
-        if lat and lon:
-            data = fetch_air_pollution_data(lat, lon, API_KEY)
-            if data:
-                aqi = data['main']['aqi']
-                st.metric("Air Quality Index (AQI)", aqi)
-
-                # Display pollutant components
-                components = data['components']
-                st.write("Pollutant Components:")
-                st.table(components)
-
-                # AQI Interpretation
-                aqi_interpretation = {
-                    1: "Good",
-                    2: "Fair",
-                    3: "Moderate",
-                    4: "Poor",
-                    5: "Very Poor"
-                }
-                st.write(f"Air Quality Status: {aqi_interpretation.get(aqi, 'Unknown')}")
-            else:
-                st.error("Failed to fetch air pollution data.")
-        else:
-            st.error("Could not find the city. Please check the name and try again.")
-
-if __name__ == "__main__":
-    main()
+if st.button("Predict Trend"):
+    if location_input:
+        prediction = predict_air_quality_trend(location_input)
+        st.write(prediction)
+    else:
+        st.error("⚠️ Please enter a location.")
