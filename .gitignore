@@ -4,3 +4,4 @@
 .env
 .env
 .env # Ensure Git ignores .env file
+.env # Ensure Git ignores .env file
