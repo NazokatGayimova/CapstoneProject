@@ -1,4 +1,18 @@
 # 🌍 AI-Powered Air Quality Query Agent
+<img width="1203" alt="airquality_london" src="https://github.com/user-attachments/assets/2245f0d6-458d-480b-9a83-dde4f27d0005" />
+
+<img width="1217" alt="airquality_tashkent" src="https://github.com/user-attachments/assets/7773cbeb-d6b8-4247-8d6f-f51a31942325" />
+
+<img width="1246" alt="airquality_minsk" src="https://github.com/user-attachments/assets/4d4a88aa-3ffc-41c9-8844-8c2df581fafd" />
+
+Screenshots of Predict Future Air Quality Trends:
+<img width="1179" alt="prediction3_shanghai" src="https://github.com/user-attachments/assets/d47e97d3-c82f-4f81-82f2-d1d3fdb4792a" />
+
+<img width="1280" alt="prediction2_london" src="https://github.com/user-attachments/assets/b6cf3cd8-fb6c-454a-b641-4cb7ecd96bc9" />
+<img width="1227" alt="prediction_tashkent" src="https://github.com/user-attachments/assets/911bca3b-7837-47d1-93a9-266e1a0cc65b" />
+
+
+
 
 ## 🚀 Overview
 This project is an **AI-powered air quality query agent** that allows users to:
