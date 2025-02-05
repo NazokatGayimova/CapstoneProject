@@ -1,81 +1,103 @@
 import sqlite3
 import openai
 import os
+import json
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+
+# Initialize OpenAI Client
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 
-# Function to retrieve database schema
-def get_database_schema():
-    """Retrieve database schema dynamically."""
-    conn = sqlite3.connect("database/air_quality.sqlite")
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = cursor.fetchall()
-
-    schema_info = {}
-    for table in tables:
-        table_name = table[0]
-        cursor.execute(f"PRAGMA table_info({table_name});")
-        columns = [col[1] for col in cursor.fetchall()]
-        schema_info[table_name] = columns
-
-    conn.close()
-    return schema_info
-
-
-# Function to generate SQL query using OpenAI
-def generate_sql_query(user_query):
-    """Generate an SQL query based on user input and database schema."""
-    schema_info = get_database_schema()
-    prompt = f"""
-    You are an SQL assistant with access to the following database schema:
-    {schema_info}
-    Given this schema, generate an appropriate SQL query for the user's request:
-    "{user_query}"
-    Ensure the SQL is correctly formatted and avoids non-existing table or column names.
-    Do not include explanations, only return the SQL query.
-    """
+def get_location_coordinates(location):
+    """Fetch latitude and longitude for a given location using OpenWeather Geocoding API."""
+    geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={OPENWEATHER_API_KEY}"
     try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": "You are an expert SQL assistant."},
-                      {"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error generating SQL query: {e}"
+        response = requests.get(geo_url)
+        response.raise_for_status()
+        data = response.json()
+        if data and len(data) > 0:
+            return data[0]['lat'], data[0]['lon']
+        else:
+            return None, None
+    except requests.exceptions.RequestException:
+        return None, None
 
 
-# Function to query the database
-def ask_database(query):
-    """Execute SQL query and return results."""
+def interpret_air_quality(aqi):
+    """Convert AQI index to human-readable format."""
+    aqi_levels = {1: "Good", 2: "Fair", 3: "Moderate", 4: "Poor", 5: "Very Poor"}
+    return aqi_levels.get(aqi, "Unknown")
+
+
+def format_air_quality_data(data, location):
+    """Convert raw API air quality data into human-readable format."""
+    if not data:
+        return f"⚠️ No real-time air quality data available for {location}."
+
+    aqi = interpret_air_quality(data['main']['aqi'])
+    components = data['components']
+
+    formatted_data = (f"🌍 **Real-time Air Quality in {location}:**\n"
+                      f"- **Overall Air Quality Index (AQI):** {aqi}\n"
+                      f"- **CO (Carbon Monoxide):** {components['co']} µg/m³\n"
+                      f"- **NO (Nitric Oxide):** {components['no']} µg/m³\n"
+                      f"- **NO₂ (Nitrogen Dioxide):** {components['no2']} µg/m³\n"
+                      f"- **O₃ (Ozone):** {components['o3']} µg/m³\n"
+                      f"- **SO₂ (Sulfur Dioxide):** {components['so2']} µg/m³\n"
+                      f"- **PM2.5 (Fine Particles):** {components['pm2_5']} µg/m³\n"
+                      f"- **PM10 (Coarse Particles):** {components['pm10']} µg/m³\n"
+                      f"- **NH₃ (Ammonia):** {components['nh3']} µg/m³")
+    return formatted_data
+
+
+def fetch_external_air_quality(location):
+    """Fetch and format real-time air quality data using OpenWeather API."""
+    lat, lon = get_location_coordinates(location)
+    if lat is None or lon is None:
+        return None  # No valid coordinates found
+
+    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}"
     try:
-        conn = sqlite3.connect("database/air_quality.sqlite")
-        cursor = conn.cursor()
-        cursor.execute(query)
-        rows = cursor.fetchall()
-        conn.close()
-        return rows if rows else "Please visit openweather.com for more information."
-    except Exception as e:
-        return f"SQL error: {e}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if "list" in data and len(data["list"]) > 0:
+            return format_air_quality_data(data["list"][0], location)
+        else:
+            return None
+    except requests.exceptions.RequestException:
+        return None
 
 
-# Main function to handle user queries
 def handle_query(user_query):
-    """Process user query and return results from database or OpenWeather prompt."""
-    sql_query = generate_sql_query(user_query)
-    if "Error" in sql_query:
-        return "Please visit openweather.com for more information."
+    """Process user query, decide action, and return results."""
+    decision_prompt = f"""
+    Given the user query: "{user_query}", decide the action:
+    - If the query is about historical air quality, return "sql_query".
+    - If the query is about predicting future trends, return "predict_trend".
+    - If the query cannot be answered with the available data, return "fetch_external".
+    Respond with one of these three choices only.
+    """
 
-    return ask_database(sql_query)
+    try:
+        decision_response = client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "system", "content": "Decide the appropriate action."},
+                      {"role": "user", "content": decision_prompt}]
+        )
+        decision = decision_response.choices[0].message.content.strip()
+    except Exception:
+        return "⚠️ Unable to determine the correct action."
 
-
-if __name__ == "__main__":
-    user_input = input("Enter your air quality question: ")
-    response = handle_query(user_input)
-    print(response)
+    if decision == "fetch_external":
+        location = user_query.split()[-1]  # Extract last word as location
+        external_data = fetch_external_air_quality(location)
+        return external_data if external_data else f"⚠️ No real-time air quality data available for {location}. Please check OpenWeather."
+    else:
+        return "⚠️ Unexpected decision outcome."
