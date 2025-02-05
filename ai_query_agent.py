@@ -43,16 +43,20 @@ def format_air_quality_data(data, location):
     aqi = interpret_air_quality(data['main']['aqi'])
     components = data['components']
 
-    formatted_data = (f"🌍 **Real-time Air Quality in {location}:**\n"
-                      f"- **Overall Air Quality Index (AQI):** {aqi}\n"
-                      f"- **CO (Carbon Monoxide):** {components['co']} µg/m³\n"
-                      f"- **NO (Nitric Oxide):** {components['no']} µg/m³\n"
-                      f"- **NO₂ (Nitrogen Dioxide):** {components['no2']} µg/m³\n"
-                      f"- **O₃ (Ozone):** {components['o3']} µg/m³\n"
-                      f"- **SO₂ (Sulfur Dioxide):** {components['so2']} µg/m³\n"
-                      f"- **PM2.5 (Fine Particles):** {components['pm2_5']} µg/m³\n"
-                      f"- **PM10 (Coarse Particles):** {components['pm10']} µg/m³\n"
-                      f"- **NH₃ (Ammonia):** {components['nh3']} µg/m³")
+    formatted_data = {
+        "location": location,
+        "aqi": aqi,
+        "pollutants": {
+            "CO (Carbon Monoxide)": f"{components['co']} µg/m³",
+            "NO (Nitric Oxide)": f"{components['no']} µg/m³",
+            "NO₂ (Nitrogen Dioxide)": f"{components['no2']} µg/m³",
+            "O₃ (Ozone)": f"{components['o3']} µg/m³",
+            "SO₂ (Sulfur Dioxide)": f"{components['so2']} µg/m³",
+            "PM2.5 (Fine Particles)": f"{components['pm2_5']} µg/m³",
+            "PM10 (Coarse Particles)": f"{components['pm10']} µg/m³",
+            "NH₃ (Ammonia)": f"{components['nh3']} µg/m³",
+        }
+    }
     return formatted_data
 
 
@@ -76,28 +80,36 @@ def fetch_external_air_quality(location):
 
 
 def handle_query(user_query):
-    """Process user query, decide action, and return results."""
-    decision_prompt = f"""
-    Given the user query: "{user_query}", decide the action:
-    - If the query is about historical air quality, return "sql_query".
-    - If the query is about predicting future trends, return "predict_trend".
-    - If the query cannot be answered with the available data, return "fetch_external".
-    Respond with one of these three choices only.
-    """
+    """Process user query with OpenAI function calling."""
+    function_definitions = [
+        {
+            "name": "fetch_air_quality",
+            "description": "Fetch real-time air quality for a location.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "City name"}
+                },
+                "required": ["location"]
+            }
+        }
+    ]
 
     try:
-        decision_response = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4-turbo",
-            messages=[{"role": "system", "content": "Decide the appropriate action."},
-                      {"role": "user", "content": decision_prompt}]
+            messages=[{"role": "system", "content": "You are an AI assistant that calls functions."},
+                      {"role": "user", "content": user_query}],
+            functions=function_definitions,
+            function_call="auto"
         )
-        decision = decision_response.choices[0].message.content.strip()
-    except Exception:
-        return "⚠️ Unable to determine the correct action."
 
-    if decision == "fetch_external":
-        location = user_query.split()[-1]  # Extract last word as location
-        external_data = fetch_external_air_quality(location)
-        return external_data if external_data else f"⚠️ No real-time air quality data available for {location}. Please check OpenWeather."
-    else:
-        return "⚠️ Unexpected decision outcome."
+        function_response = response.choices[0].message.function_call
+        if function_response and function_response.name == "fetch_air_quality":
+            args = json.loads(function_response.arguments)
+            return fetch_external_air_quality(args.get("location"))
+        else:
+            return "⚠️ Unable to process request."
+    except Exception:
+        return "⚠️ AI function calling failed. Please check OpenAI API."
+

@@ -14,14 +14,12 @@ if st.button("Run Query"):
     if user_query:
         result = handle_query(user_query)
 
-        if isinstance(result, tuple):
-            query_status, data = result
-            if query_status:
-                df = pd.DataFrame(data, columns=["Location", "PM2.5", "Year"])
-                st.success("✅ Query executed successfully!")
-                st.table(df)
-            else:
-                st.warning(data)  # Display error message
+        if isinstance(result, dict):
+            st.success(f"✅ Real-time Air Quality for {result['location']}")
+            st.write(f"**AQI Level:** {result['aqi']}")
+            st.write("**Pollutants:**")
+            for pollutant, value in result["pollutants"].items():
+                st.write(f"- {pollutant}: {value}")
         elif isinstance(result, str):
             st.write(result)  # Display AI response (e.g., prediction, OpenWeather redirection)
         else:

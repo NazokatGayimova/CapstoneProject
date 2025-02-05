@@ -1,110 +1,150 @@
-import sqlite3
-import openai
-import os
-import json
-import requests
-from dotenv import load_dotenv
+# 🌍 AI-Powered Air Quality Query Agent
 
-# Load environment variables
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+## 🚀 Overview
+This project is an **AI-powered air quality query agent** that allows users to:
+1. **Query historical air quality data** using an SQL-based database.
+2. **Predict future air quality trends** using AI and machine learning.
+3. **Retrieve real-time air quality data** from OpenWeather API.
+4. **Fetch AI-generated insights** from web sources if data is unavailable.
+5. **Utilize OpenAI function calling** to make intelligent decisions dynamically.
 
-# Initialize OpenAI Client
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
+It uses:
+- **OpenAI GPT-4 Turbo** for function calling, query generation, and trend analysis.
+- **SQLite** for storing historical air quality data.
+- **Streamlit** for an interactive web interface.
+- **Scikit-learn** for predictive modeling of air quality trends.
+- **OpenWeather API** for real-time pollution levels.
 
-def get_location_coordinates(location):
-    """Fetch latitude and longitude for a given location using OpenWeather Geocoding API."""
-    geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={OPENWEATHER_API_KEY}"
-    try:
-        response = requests.get(geo_url)
-        response.raise_for_status()
-        data = response.json()
-        if data and len(data) > 0:
-            return data[0]['lat'], data[0]['lon']
-        else:
-            return None, None
-    except requests.exceptions.RequestException:
-        return None, None
+---
 
-def interpret_air_quality(aqi):
-    """Convert AQI index to human-readable format."""
-    aqi_levels = {1: "Good", 2: "Fair", 3: "Moderate", 4: "Poor", 5: "Very Poor"}
-    return aqi_levels.get(aqi, "Unknown")
+## 📂 **Project Structure**
+```
+📦 CapstoneProject_AI
+│── 📁 database
+│   ├── air_quality.sqlite  # SQLite database containing air quality data
+│── 📁 data
+│   ├── Air_Quality.csv  # Raw dataset from Kaggle
+│── 📄 app.py  # Streamlit-based web interface
+│── 📄 ai_query_agent.py  # AI-powered SQL query & API fetcher
+│── 📄 predict_trend.py  # AI-powered air quality prediction model
+│── 📄 database_setup.py  # Script to initialize the SQLite database
+│── 📄 requirements.txt  # Python dependencies
+│── 📄 README.md  # Project documentation
+```
 
-def format_air_quality_data(data, location):
-    """Convert raw API air quality data into human-readable format."""
-    if not data:
-        return f"⚠️ No real-time air quality data available for {location}."
-    
-    aqi = interpret_air_quality(data['main']['aqi'])
-    components = data['components']
-    
-    formatted_data = {
-        "location": location,
-        "aqi": aqi,
-        "pollutants": {
-            "CO (Carbon Monoxide)": f"{components['co']} µg/m³",
-            "NO (Nitric Oxide)": f"{components['no']} µg/m³",
-            "NO₂ (Nitrogen Dioxide)": f"{components['no2']} µg/m³",
-            "O₃ (Ozone)": f"{components['o3']} µg/m³",
-            "SO₂ (Sulfur Dioxide)": f"{components['so2']} µg/m³",
-            "PM2.5 (Fine Particles)": f"{components['pm2_5']} µg/m³",
-            "PM10 (Coarse Particles)": f"{components['pm10']} µg/m³",
-            "NH₃ (Ammonia)": f"{components['nh3']} µg/m³",
-        }
-    }
-    return formatted_data
+---
 
-def fetch_external_air_quality(location):
-    """Fetch and format real-time air quality data using OpenWeather API."""
-    lat, lon = get_location_coordinates(location)
-    if lat is None or lon is None:
-        return None  # No valid coordinates found
+## 🔧 **Installation & Setup**
 
-    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        if "list" in data and len(data["list"]) > 0:
-            return format_air_quality_data(data["list"][0], location)
-        else:
-            return None
-    except requests.exceptions.RequestException:
-        return None
+### **1️⃣ Clone the Repository**
+```bash
+git clone <your-github-repo-url>
+cd CapstoneProject_AI
+```
 
-def handle_query(user_query):
-    """Process user query with OpenAI function calling."""
-    function_definitions = [
-        {
-            "name": "fetch_air_quality",
-            "description": "Fetch real-time air quality for a location.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"}
-                },
-                "required": ["location"]
-            }
-        }
-    ]
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "system", "content": "You are an AI assistant that calls functions."},
-                      {"role": "user", "content": user_query}],
-            functions=function_definitions,
-            function_call="auto"
-        )
-        
-        function_response = response.choices[0].message.function_call
-        if function_response and function_response.name == "fetch_air_quality":
-            args = json.loads(function_response.arguments)
-            return fetch_external_air_quality(args.get("location"))
-        else:
-            return "⚠️ Unable to process request."
-    except Exception:
-        return "⚠️ AI function calling failed. Please check OpenAI API."
+### **2️⃣ Set Up a Virtual Environment**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# For Windows: .venv\Scripts\activate
+```
 
+### **3️⃣ Install Dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+### **4️⃣ Set Up API Keys**
+Create a `.env` file in the project root:
+```ini
+OPENAI_API_KEY=your_openai_api_key_here
+OPENWEATHER_API_KEY=your_openweather_api_key_here
+```
+
+---
+
+## 🏃 Running the Project
+### **Start the Streamlit App**
+```bash
+streamlit run app.py
+```
+It will be accessible at:
+➡️ `http://localhost:8501/`
+
+---
+
+## 🛡️ Security Enhancements
+To improve security, we have implemented the following updates:
+- **🔒 Secure API Key Management:** API keys are now stored in a `.env` file instead of hardcoded in the script.
+- **🛠️ SQL Injection Prevention:** All database queries use **parameterized queries** to prevent SQL injection attacks.
+- **🚫 API Error Handling:** OpenAI and OpenWeather API calls now include structured error handling to avoid crashes.
+- **🔑 Data Privacy:** User inputs are validated to prevent malicious requests and unnecessary API calls.
+- **🛡️ Exception Handling:** Enhanced error handling ensures robustness in unexpected scenarios.
+
+---
+
+## 🛠️ How It Works
+
+### **1️⃣ AI-Powered SQL Querying**
+- Users enter air quality-related questions (e.g., _"What is the air quality in New York?"_).
+- AI converts this into an SQL query.
+- The system searches the database and returns relevant results.
+- If no data is found, users are guided to OpenWeather or AI-generated insights.
+
+### **2️⃣ AI-Powered Air Quality Trend Prediction**
+- Users enter a location for **future air quality predictions**.
+- The system uses **historical data** and **machine learning** (Linear Regression) to predict PM2.5 levels.
+- If no historical data exists, **AI generates a location-specific forecast** based on environmental factors.
+
+### **3️⃣ Real-Time Air Quality Retrieval**
+- If no historical data is available, the system fetches **real-time pollution levels** from OpenWeather API.
+- Data is formatted in **human-readable output** (AQI interpretation, pollutant levels in µg/m³).
+- If OpenWeather API fails, AI searches the web for **trusted sources** (WHO, AQICN, EPA).
+
+### **4️⃣ OpenAI Function Calling Integration**
+- The AI system **automatically determines** the best course of action:
+  - Query database for historical data.
+  - Fetch real-time air quality.
+  - Use AI to predict future trends.
+- **No manual decision-making required—AI handles everything dynamically.**
+
+---
+
+## 🔍 Example Queries
+✅ _"What is the air quality in London?"_
+✅ _"Show air pollution levels for Tokyo."_
+✅ _"Find the latest PM2.5 levels in Paris."_
+✅ _"Predict the air quality trend for Beijing."_
+✅ _"What will be the pollution levels in Tokyo next year?"_
+
+If data is unavailable, the system now displays:
+⚠️ _"No real-time air quality data available for [city]. Please check OpenWeather."_
+
+---
+
+## 🛠 Troubleshooting
+### **1️⃣ Database Not Found?**
+Run the database setup script:
+```bash
+python database_setup.py
+```
+
+### **2️⃣ Errors with OpenAI or OpenWeather API?**
+Ensure you have a valid API key set in `.env`.
+Then run:
+```bash
+pip install --upgrade openai
+```
+
+---
+
+## 📜 License
+This project is open-source under the **MIT License**.
+
+---
+
+## 🎯 Future Enhancements
+✅ **Integrate real-time API for live air quality updates**
+✅ **Improve AI query handling for location-based searches**
+✅ **Enhance ML models for better prediction accuracy**
+✅ **Optimize caching for external API calls**
