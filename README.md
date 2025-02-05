@@ -1,107 +1,143 @@
-📌 README.md (Final & Detailed Version)
-markdown
-Copy
-Edit
 # 🌍 AI-Powered Air Quality Query Agent
 
 ## 🚀 Overview
 This project is an **AI-powered air quality query agent** that allows users to:
 1. **Query historical air quality data** using an SQL-based database.
-2. **Predict future air quality trends** for a given location.
-3. **Guide users to OpenWeather if no data is available** in the database.
+2. **Predict future air quality trends** using AI and machine learning.
+3. **Retrieve real-time air quality data** from OpenWeather API.
+4. **Fetch AI-generated insights** from web sources if data is unavailable.
 
 It uses:
-- **OpenAI GPT** to generate SQL queries dynamically.
+- **OpenAI GPT-4 Turbo** to generate SQL queries, analyze trends, and summarize external data.
 - **SQLite** as a local database for storing air quality data.
-- **Streamlit** for an interactive and user-friendly web interface.
+- **Streamlit** for an interactive web interface.
 - **Scikit-learn** for predictive modeling of air quality trends.
+- **OpenWeather API** for real-time pollution levels.
 
 ---
 
 ## 📂 **Project Structure**
-📦 CapstoneProject_AI │── 📁 database │ ├── air_quality.sqlite # SQLite database containing air quality data │── 📁 data │ ├── Air_Quality.csv # Raw dataset from Kaggle │── 📄 app.py # Streamlit-based web interface │── 📄 ai_query_agent.py # AI-powered SQL query agent │── 📄 predict_trend.py # Air quality prediction model │── 📄 database_setup.py # Script to initialize the SQLite database │── 📄 requirements.txt # Python dependencies │── 📄 README.md # Project documentation
-
-yaml
-Copy
-Edit
+```
+📦 CapstoneProject_AI
+│── 📁 database
+│   ├── air_quality.sqlite  # SQLite database containing air quality data
+│── 📁 data
+│   ├── Air_Quality.csv  # Raw dataset from Kaggle
+│── 📄 app.py  # Streamlit-based web interface
+│── 📄 ai_query_agent.py  # AI-powered SQL query & API fetcher
+│── 📄 predict_trend.py  # AI-powered air quality prediction model
+│── 📄 database_setup.py  # Script to initialize the SQLite database
+│── 📄 requirements.txt  # Python dependencies
+│── 📄 README.md  # Project documentation
+```
 
 ---
 
 ## 🔧 **Installation & Setup**
+
 ### **1️⃣ Clone the Repository**
 ```bash
-git clone https://github.com/NazokatGayimova/CapstoneProject.git
+git clone <your-github-repo-url>
 cd CapstoneProject_AI
-2️⃣ Set Up a Virtual Environment
-bash
-Copy
-Edit
+```
+
+### **2️⃣ Set Up a Virtual Environment**
+```bash
 python3 -m venv .venv
 source .venv/bin/activate  # macOS/Linux
-(For Windows: .\venv\Scripts\activate)
+# For Windows: .venv\Scripts\activate
+```
 
-3️⃣ Install Dependencies
-bash
-Copy
-Edit
+### **3️⃣ Install Dependencies**
+```bash
 pip install -r requirements.txt
-4️⃣ Set Up Environment Variables
-Create a .env file in the project root:
+```
 
-ini
-Copy
-Edit
+### **4️⃣ Set Up API Keys**
+Create a `.env` file in the project root:
+```ini
 OPENAI_API_KEY=your_openai_api_key_here
-🏃 Running the Project
-Start the Streamlit App
-bash
-Copy
-Edit
+OPENWEATHER_API_KEY=your_openweather_api_key_here
+```
+
+---
+
+## 🏃 Running the Project
+### **Start the Streamlit App**
+```bash
 streamlit run app.py
+```
 It will be accessible at:
-➡️ http://localhost:8501/
+➡️ `http://localhost:8501/`
 
-🛠️ How It Works
-1️⃣ AI-Powered SQL Querying
-Users enter air quality-related questions (e.g., "What is the air quality in New York?").
-AI converts this into an SQL query.
-The system searches the database and returns relevant results.
-If no data is found, users are guided to OpenWeather.
-2️⃣ Air Quality Trend Prediction
-Users enter a location for future air quality predictions.
-The system uses historical data and machine learning (Linear Regression) to predict PM2.5 levels.
-🔍 Example Queries
-✅ "What is the air quality in London?"
-✅ "Show air pollution levels for Tokyo."
-✅ "Find the latest PM2.5 levels in Paris."
+---
 
-If data is unavailable, the system displays:
-⚠️ "No data found. Please visit OpenWeather for more information."
+## 🛡️ Security Enhancements
+To improve security, we have implemented the following updates:
+- **🔒 Secure API Key Management:** API keys are now stored in a `.env` file instead of hardcoded in the script.
+- **🛠️ SQL Injection Prevention:** All database queries use **parameterized queries** to prevent SQL injection attacks.
+- **🚫 API Error Handling:** OpenAI and OpenWeather API calls now include structured error handling to avoid crashes.
+- **🔑 Data Privacy:** User inputs are validated to prevent malicious requests and unnecessary API calls.
+- **🛡️ Exception Handling:** Enhanced error handling ensures robustness in unexpected scenarios.
 
-🤝 Contributing
-Fork the repository.
-Create a new branch (feature-xyz).
-Make changes & commit (git commit -m "Added feature XYZ").
-Push & submit a PR (git push origin feature-xyz).
-🛠 Troubleshooting
-1️⃣ Database Not Found?
+---
+
+## 🛠️ How It Works
+
+### **1️⃣ AI-Powered SQL Querying**
+- Users enter air quality-related questions (e.g., _"What is the air quality in New York?"_).
+- AI converts this into an SQL query.
+- The system searches the database and returns relevant results.
+- If no data is found, users are guided to OpenWeather or AI-generated insights.
+
+### **2️⃣ Air Quality Trend Prediction**
+- Users enter a location for **future air quality predictions**.
+- The system uses **historical data** and **machine learning** (Linear Regression) to predict PM2.5 levels.
+- If no historical data exists, AI **retrieves web insights** and presents an estimated trend.
+
+### **3️⃣ Real-Time Air Quality Retrieval**
+- If no historical data is available, the system fetches **real-time pollution levels** from OpenWeather API.
+- Data is formatted in **human-readable output** (AQI interpretation, pollutant levels in µg/m³).
+- If OpenWeather API fails, AI searches the web for **trusted sources** (WHO, AQICN, EPA).
+
+---
+
+## 🔍 Example Queries
+✅ _"What is the air quality in London?"_
+✅ _"Show air pollution levels for Tokyo."_
+✅ _"Find the latest PM2.5 levels in Paris."_
+✅ _"Predict the air quality trend for Beijing."_
+✅ _"What will be the pollution levels in Tokyo next year?"_
+
+If data is unavailable, the system now displays:
+⚠️ _"No real-time air quality data available for [city]. Please check OpenWeather."_
+
+---
+
+## 🛠 Troubleshooting
+### **1️⃣ Database Not Found?**
 Run the database setup script:
-
-bash
-Copy
-Edit
+```bash
 python database_setup.py
-2️⃣ Errors with OpenAI API?
-Ensure you have a valid API key set in .env.
-Run:
-bash
-Copy
-Edit
-pip install --upgrade openai
-📜 License
-This project is open-source under the MIT License.
+```
 
-🎯 Future Enhancements
-✅ Add real-time API integration for live air quality updates.
-✅ Improve AI query handling to reduce errors.
-✅ Implement more advanced machine learning models for predictions.
+### **2️⃣ Errors with OpenAI or OpenWeather API?**
+Ensure you have a valid API key set in `.env`.
+Then run:
+```bash
+pip install --upgrade openai
+```
+
+---
+
+## 📜 License
+This project is open-source under the **MIT License**.
+
+---
+
+## 🎯 Future Enhancements
+✅ **Integrate real-time API for live air quality updates**
+✅ **Improve AI query handling for location-based searches**
+✅ **Enhance ML models for better prediction accuracy**
+✅ **Optimize caching for external API calls**
+
